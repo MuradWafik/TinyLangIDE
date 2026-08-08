@@ -3,7 +3,7 @@
 #include <QPlainTextEdit>
 #include <QWidget>
 
-class CodeEditor : public QPlainTextEdit
+class CodeEditor final : public QPlainTextEdit
 {
     Q_OBJECT
 public:

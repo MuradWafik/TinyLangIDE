@@ -3,18 +3,21 @@
 #include <QWidget>
 #include "CodeEditor.h"
 
-class LineNumberArea : public QWidget
+class LineNumberArea final : public QWidget
 {
 public:
-    LineNumberArea(CodeEditor *editor) : QWidget(editor)
+    explicit LineNumberArea(CodeEditor *editor) : QWidget(editor)
     {
         codeEditor = editor;
+        this->setContentsMargins(0, 0, 10, 0);
     }
 
     QSize sizeHint() const override
     {
         return QSize(codeEditor->lineNumberAreaWidth(), 0);
     }
+
+    constexpr static int rightMargin = 6;
 
 protected:
     void paintEvent(QPaintEvent *event) override

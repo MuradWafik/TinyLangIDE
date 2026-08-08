@@ -1,17 +1,15 @@
 #include "CodeEditor.h"
-#include "LineNumberArea.h"
+
 #include <QPainter>
 #include <QTextBlock>
 
+#include "LineNumberArea.h"
 
 
 CodeEditor::CodeEditor(QWidget *parent) : QPlainTextEdit(parent)
 {
     lineNumberArea = new LineNumberArea(this);
 
-    // connect(this, SIGNAL(blockCountChanged(int)), this, SLOT(updateLineNumberAreaWidth(int)));
-    // connect(this, SIGNAL(updateRequest(QRect,int)), this, SLOT(updateLineNumberArea(QRect,int)));
-    // connect(this, SIGNAL(cursorPositionChanged()), this, SLOT(highlightCurrentLine()));
     connect(this, &CodeEditor::blockCountChanged, this, &CodeEditor::updateLineNumberAreaWidth);
     connect(this, &CodeEditor::updateRequest, this, &CodeEditor::updateLineNumberArea);
     connect(this, &CodeEditor::cursorPositionChanged, this, &CodeEditor::highlightCurrentLine);
@@ -33,8 +31,13 @@ int CodeEditor::lineNumberAreaWidth() const
 
     digits = qMax(digits, 2); // At least 2 digits wide
 
-    const int space = 3 + fontMetrics().averageCharWidth() * digits;
-    return space;
+    constexpr int leftPadding  = LineNumberArea::rightMargin / 2;
+    constexpr int rightPadding = LineNumberArea::rightMargin;
+
+    return
+        leftPadding
+        + (fontMetrics().averageCharWidth() * digits)
+        + rightPadding;
 }
 
 void CodeEditor::updateLineNumberAreaWidth(int /* newBlockCount */)
@@ -96,8 +99,12 @@ void CodeEditor::lineNumberAreaPaintEvent(const QPaintEvent *event) const
         if (block.isVisible() && bottom >= event->rect().top()) {
             QString number = QString::number(blockNumber + 1);
             painter.setPen(font_color);
-            painter.drawText(0, top, lineNumberArea->width(), fontMetrics().height(),
-                             Qt::AlignRight, number);
+            QRect rect(
+                0, top,
+                lineNumberArea->width() - LineNumberArea::rightMargin, fontMetrics().height()
+            );
+
+            painter.drawText(rect, Qt::AlignRight | Qt::AlignVCenter, number);
         }
 
         block = block.next();

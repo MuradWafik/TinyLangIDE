@@ -14,8 +14,15 @@ qt_add_executable(TinyLangIDE
     LineNumberArea.h
     EditorPage.h EditorPage.cpp EditorPage.ui
     CodeEditor.h CodeEditor.cpp
+        HomePage.cpp
+        HomePage.h
+        HomePage.ui
+        TinyLangUtils.cpp
+        TinyLangUtils.h
 
 )
+
+target_compile_features(TinyLangIDE PRIVATE cxx_std_23)
 
 target_include_directories(TinyLangIDE PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
