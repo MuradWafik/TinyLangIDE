@@ -43,10 +43,7 @@ void HomePage::OpenProject(bool)
         return;
     }
 
-    // TODO: Emit a signal or open the project in the editor here
-
     emit ProjectOpened(project_dir);
-    qDebug() << "Successfully opened project at:" << dir_path;
 }
 
 void HomePage::NewProject(bool)
@@ -59,14 +56,14 @@ void HomePage::NewProject(bool)
         QLineEdit::Normal, QString(), &ok
     );
 
-    if (!ok || projectName.trimmed().isEmpty()) return;
+    if(!ok || projectName.trimmed().isEmpty()) return;
 
 
     const QString project_dir = QFileDialog::getExistingDirectory(
         this, tr("Select Parent Directory for Project"), QDir::homePath()
     );
 
-    if (project_dir.isEmpty()) return; // User cancelled the directory choice
+    if(project_dir.isEmpty()) return; // User cancelled the directory choice
 
     if(auto result = TinyLangUtils::NewProject(projectName, project_dir);
         !result)
@@ -78,11 +75,10 @@ void HomePage::NewProject(bool)
         return;
     }
 
-    const QString full_project_path = QDir(project_dir).filePath(projectName);
     QMessageBox::information(
         this, tr("Success"),
         tr("Project '%1' created successfully!").arg(projectName)
     );
 
-    emit ProjectOpened(full_project_path);
+    emit ProjectOpened(project_dir);
 }

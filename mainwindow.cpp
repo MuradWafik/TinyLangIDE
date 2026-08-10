@@ -12,7 +12,7 @@ MainWindow::MainWindow(QWidget *parent)
     this->setCentralWidget(this->ui->stackedWidget);
 
     const auto* home = this->ui->homePage;
-    connect(home, &HomePage::ProjectOpened, this, OpenProject);
+    connect(home, &HomePage::ProjectOpened, this, &MainWindow::OpenProject);
 
 }
 
@@ -21,7 +21,10 @@ MainWindow::~MainWindow()
     delete ui;
 }
 
-void MainWindow::OpenProject(const QDir& dir) const
+void MainWindow::OpenProject(QDir dir)
 {
+    this->ui->editorPage->Initialize(&dir);
     this->ui->stackedWidget->setCurrentWidget(this->ui->editorPage);
+    project_dir = std::move(dir);
+
 }

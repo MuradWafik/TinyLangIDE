@@ -1,12 +1,14 @@
 #include "CodeEditor.h"
 
+#include <qfile.h>
+#include <QMessageBox>
 #include <QPainter>
 #include <QTextBlock>
 
 #include "LineNumberArea.h"
 
 
-CodeEditor::CodeEditor(QWidget *parent) : QPlainTextEdit(parent)
+void CodeEditor::InitializeLineNumbers()
 {
     lineNumberArea = new LineNumberArea(this);
 
@@ -17,6 +19,31 @@ CodeEditor::CodeEditor(QWidget *parent) : QPlainTextEdit(parent)
     updateLineNumberAreaWidth(0);
     highlightCurrentLine();
 }
+
+CodeEditor::CodeEditor(QWidget *parent) : QPlainTextEdit(parent)
+{
+    InitializeLineNumbers();
+}
+
+CodeEditor::CodeEditor(QString file_path, QWidget* parent) : QPlainTextEdit{parent}, file_path{std::move(file_path)}
+{
+    QFile file{this->file_path};
+    if(!file.open(QIODevice::ReadWrite | QIODevice::Text))
+    {
+        QMessageBox::warning(
+            this,
+            "Error",
+            QString("Unable to open file %1").arg(file.fileName())
+        );
+        return;
+    }
+
+    QTextStream stream(&file);
+    this->setPlainText(stream.readAll());
+
+    InitializeLineNumbers();
+}
+
 
 
 int CodeEditor::lineNumberAreaWidth() const
@@ -69,7 +96,7 @@ void CodeEditor::highlightCurrentLine()
     QList<QTextEdit::ExtraSelection> extraSelections;
 
     if (!isReadOnly())
-        {
+    {
         QTextEdit::ExtraSelection selection;
 
         const QColor lineColor = backgroundColor.lighter(160);
@@ -95,8 +122,10 @@ void CodeEditor::lineNumberAreaPaintEvent(const QPaintEvent *event) const
     int top = static_cast<int>(blockBoundingGeometry(block).translated(contentOffset()).top());
     int bottom = top + static_cast<int>(blockBoundingRect(block).height());
 
-    while (block.isValid() && top <= event->rect().bottom()) {
-        if (block.isVisible() && bottom >= event->rect().top()) {
+    while (block.isValid() && top <= event->rect().bottom())
+    {
+        if (block.isVisible() && bottom >= event->rect().top())
+        {
             QString number = QString::number(blockNumber + 1);
             painter.setPen(font_color);
             QRect rect(

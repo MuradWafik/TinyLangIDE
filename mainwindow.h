@@ -20,5 +20,6 @@ public:
 private:
     Ui::MainWindow *ui;
 
-    void OpenProject(const QDir& dir) const;
+    void OpenProject(QDir dir);
+    QDir project_dir;
 };
