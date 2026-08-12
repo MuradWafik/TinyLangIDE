@@ -65,7 +65,14 @@
          <number>0</number>
         </property>
         <item>
-         <widget class="QTabWidget" name="editorTabs"/>
+         <widget class="QTabWidget" name="editorTabs">
+          <property name="tabsClosable">
+           <bool>true</bool>
+          </property>
+          <property name="movable">
+           <bool>true</bool>
+          </property>
+         </widget>
         </item>
        </layout>
       </widget>

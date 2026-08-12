@@ -14,6 +14,7 @@ public:
 
     void lineNumberAreaPaintEvent(const QPaintEvent *event) const;
     int lineNumberAreaWidth() const;
+    QString file_path;
 
 protected:
     void resizeEvent(QResizeEvent *event) Q_DECL_OVERRIDE;
@@ -29,5 +30,4 @@ private:
     constexpr static QColor font_color{255, 255, 255};
 
     QWidget* lineNumberArea;
-    QString file_path;
 };

@@ -3,6 +3,8 @@
 #include <qdir.h>
 #include <QMainWindow>
 
+#include "IMenuProvider.h"
+
 QT_BEGIN_NAMESPACE
 namespace Ui {
 class MainWindow;
@@ -18,8 +20,10 @@ public:
     ~MainWindow() override;
 
 private:
-    Ui::MainWindow *ui;
-
     void OpenProject(QDir dir);
+    void SetCurrentPage(QWidget* page);
+
+    Ui::MainWindow *ui;
     QDir project_dir;
+    DefaultMenuProvider default_menu_provider;
 };

@@ -19,6 +19,7 @@ qt_add_executable(TinyLangIDE
         HomePage.ui
         TinyLangUtils.cpp
         TinyLangUtils.h
+        IMenuProvider.h
 
 )
 
