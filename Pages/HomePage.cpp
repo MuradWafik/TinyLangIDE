@@ -6,7 +6,7 @@
 #include <QInputDialog>
 #include <QMessageBox>
 
-#include "TinyLangUtils.h"
+#include "../TinyLangKnowledge/TinyLangUtils.h"
 
 
 HomePage::HomePage(QWidget *parent) :

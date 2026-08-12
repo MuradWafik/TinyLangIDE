@@ -2,7 +2,7 @@
 
 #include <QFileSystemModel>
 
-#include "IMenuProvider.h"
+#include "../IMenuProvider.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui {

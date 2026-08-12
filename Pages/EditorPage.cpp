@@ -3,8 +3,8 @@
 
 #include <QFileSystemModel>
 
-#include "CodeEditor.h"
-#include "TinyLangUtils.h"
+#include "../CodeEditor.h"
+#include "../TinyLangKnowledge/TinyLangUtils.h"
 
 
 EditorPage::EditorPage(QWidget *parent)

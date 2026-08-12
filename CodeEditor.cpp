@@ -11,6 +11,7 @@
 void CodeEditor::InitializeLineNumbers()
 {
     lineNumberArea = new LineNumberArea(this);
+    syntax_highlighter = std::make_unique<TLSyntaxHighlighter>(document());
 
     connect(this, &CodeEditor::blockCountChanged, this, &CodeEditor::updateLineNumberAreaWidth);
     connect(this, &CodeEditor::updateRequest, this, &CodeEditor::updateLineNumberArea);

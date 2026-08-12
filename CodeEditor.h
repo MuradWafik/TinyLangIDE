@@ -3,6 +3,8 @@
 #include <QPlainTextEdit>
 #include <QWidget>
 
+#include "TLSyntaxHighlighter.h"
+
 class CodeEditor final : public QPlainTextEdit
 {
     Q_OBJECT
@@ -29,5 +31,6 @@ private:
     constexpr static QColor hover_color{35, 35, 35};
     constexpr static QColor font_color{255, 255, 255};
 
+    std::unique_ptr<TLSyntaxHighlighter> syntax_highlighter;
     QWidget* lineNumberArea;
 };
