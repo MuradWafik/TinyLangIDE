@@ -6,7 +6,7 @@
 #include <QInputDialog>
 #include <QMessageBox>
 
-#include "../TinyLangKnowledge/TinyLangUtils.h"
+#include "TinyLangKnowledge/TinyLangUtils.h"
 
 
 HomePage::HomePage(QWidget *parent) :
@@ -31,19 +31,19 @@ void HomePage::OpenProject(bool)
 
     if(dir_path.isEmpty()) return;
 
-
-    const QDir project_dir{dir_path};
-    const QString config_file = project_dir.filePath("tinylang.json");
-    if(!QFileInfo::exists(config_file))
+    auto info_res = TinyLangUtils::GetProjectInfo(dir_path);
+    if(!info_res)
     {
         QMessageBox::warning(
             this,
-            tr("Warning"),
-            tr("No tinylang.json found. Try creating a project instead."));
+            tr("Invalid Project"),
+            info_res.error().isEmpty() ? tr("No valid TinyLang project found at the selected path.") : info_res.error()
+        );
         return;
     }
 
-    emit ProjectOpened(project_dir);
+    const QString root = info_res.value()["project_root"].toString();
+    emit ProjectOpened(QDir(root.isEmpty() ? dir_path : root));
 }
 
 void HomePage::NewProject(bool)
@@ -80,5 +80,6 @@ void HomePage::NewProject(bool)
         tr("Project '%1' created successfully!").arg(projectName)
     );
 
-    emit ProjectOpened(project_dir);
+    const QDir created_dir{QDir(project_dir).filePath(projectName)};
+    emit ProjectOpened(created_dir);
 }

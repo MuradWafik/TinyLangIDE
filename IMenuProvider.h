@@ -135,7 +135,7 @@ public:
 };
 
 
-class DefaultMenuProvider : public QObject, public IMenuProvider
+class DefaultMenuProvider final : public QObject, public IMenuProvider
 {
 public:
     explicit DefaultMenuProvider(QObject* parent = nullptr)
@@ -153,8 +153,6 @@ public:
 
         registry.AddAction("file", "new", new_action);
         registry.AddAction("file", "open", open_action);
-        registry.AddAction("file", "save", save_action);
-        registry.AddAction("file", "save_as", save_as_action);
         registry.AddAction("file", "exit", exit_action);
 
         registry.AddAction("edit", "undo", undo_action);
@@ -164,11 +162,9 @@ public:
         registry.AddAction("edit", "paste", paste_action);
     }
 
-private:
+protected:
     QAction* new_action;
     QAction* open_action;
-    QAction* save_action;
-    QAction* save_as_action;
     QAction* exit_action;
 
     QAction* undo_action;
@@ -182,8 +178,6 @@ private:
         new_action = MakeAction("&New", QKeySequence::New,this);
         open_action = MakeAction("&Open...", QKeySequence::Open,this);
 
-        save_action = MakeAction("$Save", QKeySequence::Save, this);
-        save_as_action = MakeAction("Save &As...", QKeySequence::SaveAs,this);
         exit_action = MakeAction("E&xit", QKeySequence::Quit, this);
 
         undo_action = MakeAction("&Undo", QKeySequence::Undo, this);

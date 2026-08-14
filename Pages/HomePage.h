@@ -1,7 +1,7 @@
 #ifndef HOMEPAGE_H
 #define HOMEPAGE_H
 
-#include <qdir.h>
+#include <QDir>
 #include <QWidget>
 
 
