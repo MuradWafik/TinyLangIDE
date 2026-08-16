@@ -13,6 +13,7 @@ static constexpr auto make_array(Args&&... args) -> std::array<T,sizeof...(args)
 // currently works the same for the .tl and .json, but if the json file is standard highlighting works as expecte
 class TLSyntaxHighlighter final : public QSyntaxHighlighter
 {
+    Q_OBJECT
 public:
     explicit TLSyntaxHighlighter(QTextDocument* parent);
 

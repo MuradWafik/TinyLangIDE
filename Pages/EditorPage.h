@@ -34,19 +34,32 @@ private:
     QAction* save_as_action;
     QAction* build_action;
     QAction* run_action;
-
-    QString line_ending = "\n"; // TODO: setting for user to pick between lf vs crlf
+    QAction* clean_action;
 
     void OnFileOpened(const QModelIndex& index);
     void OnTabClosed(int index = -1);
     void OnSaveAs();
     void OnFileSaved();
     void OnBuild();
+    void OnClean() const;
     void OnRun();
+    void OnFileLinted(CodeEditor* editor, const QVector<TinyLangUtils::LintItem>& result) const;
 
-    std::expected<void, QString> SaveFile(const QTextDocument* doc, const QString& path) const;
+    // open the file at the line/col
+    void OnProblemClicked(CodeEditor* editor, int line, int column);
+
+
+    void ConnectSignals();
+    void ConnectProcessSignals();
+
+    [[nodiscard]] CodeEditor* GetOpenEditor() const;
+    CodeEditor* OpenFile(const QString& path);
+
 
     QHash<QString, QWidget*> openFiles;
     // canonical path -> tab, to prevent multiple tabs for the same file, just opens its tab
     // cant use index as on removal would have to shift all
+
+    QProcess* running_process = nullptr; // the qprocess (possibly null) when something is running
+    constexpr static auto build_dir = "build";
 };

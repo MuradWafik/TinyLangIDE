@@ -78,6 +78,9 @@
        <property name="icon">
         <iconset theme="QIcon::ThemeIcon::MediaPlaybackStart"/>
        </property>
+       <property name="toolButtonStyle">
+        <enum>Qt::ToolButtonStyle::ToolButtonTextBesideIcon</enum>
+       </property>
       </widget>
      </item>
      <item>
@@ -212,7 +215,7 @@ Open a file to start editing</string>
         </size>
        </property>
        <property name="currentIndex">
-        <number>0</number>
+        <number>1</number>
        </property>
        <widget class="QWidget" name="outputPage">
         <attribute name="title">
@@ -235,7 +238,7 @@ Open a file to start editing</string>
           <number>0</number>
          </property>
          <item>
-          <widget class="QPlainTextEdit" name="output">
+          <widget class="QTextEdit" name="output">
            <property name="readOnly">
             <bool>true</bool>
            </property>
@@ -243,34 +246,10 @@ Open a file to start editing</string>
          </item>
         </layout>
        </widget>
-       <widget class="QWidget" name="problemsPage">
+       <widget class="Problems" name="problemsPage">
         <attribute name="title">
          <string>Problems</string>
         </attribute>
-        <layout class="QVBoxLayout" name="problemsLayout">
-         <property name="spacing">
-          <number>0</number>
-         </property>
-         <property name="leftMargin">
-          <number>0</number>
-         </property>
-         <property name="topMargin">
-          <number>0</number>
-         </property>
-         <property name="rightMargin">
-          <number>0</number>
-         </property>
-         <property name="bottomMargin">
-          <number>0</number>
-         </property>
-         <item>
-          <widget class="QPlainTextEdit" name="problems">
-           <property name="readOnly">
-            <bool>true</bool>
-           </property>
-          </widget>
-         </item>
-        </layout>
        </widget>
       </widget>
      </widget>
@@ -278,6 +257,15 @@ Open a file to start editing</string>
    </item>
   </layout>
  </widget>
+ <customwidgets>
+  <customwidget>
+   <class>Problems</class>
+   <extends>QWidget</extends>
+   <header>Widgets/Problems.h</header>
+   <container>1</container>
+  </customwidget>
+ </customwidgets>
  <resources/>
  <connections/>
 </ui>
+

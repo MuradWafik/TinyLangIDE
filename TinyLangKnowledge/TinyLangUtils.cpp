@@ -51,8 +51,10 @@ std::expected<void, QString> TinyLangUtils::NewProject(
     return {};
 }
 
-static std::expected<std::unique_ptr<QProcess>, QString> RunCliProcess(
-    QObject* parent, const QStringList& args, const QString& working_dir = {})
+static std::expected<QProcess*, QString> RunCliProcess(
+    QObject* parent,
+    const QStringList& args,
+    const QString& working_dir = {})
 {
     TinyLangUtils::EnsureCLILoaded();
     if(TinyLangUtils::tiny_lang_path.isEmpty())
@@ -60,7 +62,7 @@ static std::expected<std::unique_ptr<QProcess>, QString> RunCliProcess(
         return std::unexpected(QObject::tr("The 'tinylang' executable could not be found in the system PATH."));
     }
 
-    auto cli = std::make_unique<QProcess>(parent);
+    auto* cli = new QProcess(parent);
     if(!working_dir.isEmpty())
     {
         cli->setWorkingDirectory(working_dir);
@@ -117,7 +119,7 @@ std::expected<QJsonObject, QString> TinyLangUtils::GetProjectInfo(const QStringV
     return doc.object();
 }
 
-std::expected<QJsonArray, QString> TinyLangUtils::CheckProject(const QStringView project_path)
+std::expected<QVector<TinyLangUtils::LintItem>, QString> TinyLangUtils::CheckProject(const QStringView project_path)
 {
     auto res = RunCliJson({
         QStringLiteral("check"), project_path.toString(), QStringLiteral("--json")
@@ -130,7 +132,44 @@ std::expected<QJsonArray, QString> TinyLangUtils::CheckProject(const QStringView
     {
         return std::unexpected(QObject::tr("Invalid JSON from tinylang check"));
     }
-    return doc.array();
+
+    QVector<LintItem> result;
+
+    const auto arr = doc.array();
+    result.reserve(arr.size());
+
+    for(const auto& obj : arr)
+    {
+        if(!obj.isObject())
+        {
+            return std::unexpected(
+                QObject::tr("Unknown output when parsing lint result")
+            );
+        }
+
+        const auto cur = obj.toObject();
+
+        const auto severity_str = cur["severity"].toStringView();
+        const auto severity = ToSeverity(severity_str);
+
+        if(!severity)
+        {
+            return std::unexpected(QObject::tr("Unknown severity type '%1'").arg(severity_str));
+        }
+
+        const QString file = cur["file"].toString();
+
+        result.append(
+            LintItem{
+                .message = cur["message"].toString(),
+                .line = cur["line"].toInt(),
+                .col = cur["column"].toInt(),
+                .severity = *severity
+            }
+        );
+    }
+
+    return result;
 }
 
 std::expected<QJsonArray, QString> TinyLangUtils::GetSymbols(const QStringView path)
@@ -185,7 +224,6 @@ std::expected<void, QString> TinyLangUtils::BuildProject(const QDir& project_dir
 
     if(!output_dir.absolutePath().isEmpty())
     {
-        qDebug() << "build output dir: " << output_dir.absolutePath();
         args << QStringLiteral("-o") << output_dir.absolutePath();
     }
 
@@ -200,7 +238,7 @@ std::expected<void, QString> TinyLangUtils::BuildProject(const QDir& project_dir
 
 }
 
-std::expected<std::unique_ptr<QProcess>, QString> TinyLangUtils::RunProject(QObject* parent, const QDir& project_dir)
+std::expected<QProcess*, QString> TinyLangUtils::RunProject(QObject* parent, const QDir& project_dir)
 {
     const QStringList args{
         QStringLiteral("run"),
