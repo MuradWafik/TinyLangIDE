@@ -26,7 +26,6 @@ void CodeEditor::InitializeLineNumbers()
 CodeEditor::CodeEditor(QString file_path, QWidget* parent)
     : QPlainTextEdit{parent}
     , file_path{std::move(file_path)}
-    , run_lint_timer{new QTimer(this)}
 {
     QFile file{this->file_path.absoluteFilePath()};
     if(!file.open(QIODevice::ReadWrite | QIODevice::Text))
@@ -43,12 +42,6 @@ CodeEditor::CodeEditor(QString file_path, QWidget* parent)
     this->setPlainText(stream.readAll());
 
     InitializeLineNumbers();
-
-    if(IsTLFile()) run_lint_timer->start(run_lint_time_ms);
-
-    connect(this, &CodeEditor::textChanged, this,  &CodeEditor::UpdateLintTimer);
-    connect(run_lint_timer, &QTimer::timeout, this, &CodeEditor::RunLint);
-
 }
 
 
@@ -87,43 +80,6 @@ void CodeEditor::updateLineNumberArea(const QRect &rect, const int dy)
 
     if (rect.contains(viewport()->rect()))
         updateLineNumberAreaWidth(0);
-}
-
-void CodeEditor::UpdateLintTimer() const
-{
-    if(!IsTLFile() || !document()->isModified()) return;
-
-    // automatically restarts
-    run_lint_timer->start(run_lint_time_ms);
-}
-
-void CodeEditor::RunLint()
-{
-    if(lint_save_mode == LintSaveMode::SaveBeforeLint)
-    {
-        if(document()->isModified())
-        {
-            if(const auto result = Save();
-                !result)
-            {
-                QMessageBox::warning(this, tr("Error Saving"), result.error());
-                return;
-            }
-        }
-    }
-
-    const auto res = TinyLangUtils::CheckProject(this->file_path.absoluteFilePath());
-    // will run in its own qprocess (for all editors doing so)
-
-    run_lint_timer->stop();
-
-    if(!res)
-    {
-        QMessageBox::warning(this, tr("Error Linting"), res.error());
-        return;
-    }
-
-    emit OnFileLinted(this,res.value());
 }
 
 void CodeEditor::resizeEvent(QResizeEvent *event)
@@ -197,12 +153,15 @@ std::expected<void, QString> CodeEditor::SaveAs(const QString& path)
     if(const auto result = SaveTo(path); !result) return result;
 
     file_path = QFileInfo(path);
-    document()->setModified(false);
     return {};
 }
 
-void CodeEditor::SetCursorPosition(const uint32_t line, const uint32_t col)
+void CodeEditor::SetCursorPosition(uint32_t line, uint32_t col)
 {
+    // switch to 0 based indexing, keeping users call as is for simplicity when calling
+    if(line > 0) --line;
+    if(col > 0) --col;
+
     if(line >= static_cast<uint32_t>(document()->blockCount())) return;
 
     auto cursor = textCursor();
@@ -233,5 +192,26 @@ std::expected<void, QString> CodeEditor::SaveTo(const QString& path) const
         block = block.next();
         if(block.isValid()) out << line_ending;
     }
+
+    document()->setModified(false);
     return {};
+}
+
+void CodeEditor::keyPressEvent(QKeyEvent* event)
+{
+    if(event->key() == Qt::Key_Tab &&
+        event->modifiers() == Qt::NoModifier)
+    {
+        if(tab_type.type == TabType::Type::SpacesKey)
+        {
+            insertPlainText(QString(tab_type.size, ' '));
+        }
+        else
+        {
+            setTabStopDistance(QFontMetrics(this->font()).horizontalAdvance(' ') * tab_type.size);
+        }
+        return;
+    }
+
+    QPlainTextEdit::keyPressEvent(event);
 }

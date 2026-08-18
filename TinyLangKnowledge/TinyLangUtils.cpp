@@ -157,10 +157,9 @@ std::expected<QVector<TinyLangUtils::LintItem>, QString> TinyLangUtils::CheckPro
             return std::unexpected(QObject::tr("Unknown severity type '%1'").arg(severity_str));
         }
 
-        const QString file = cur["file"].toString();
-
         result.append(
             LintItem{
+                .file = cur["file"].toString(),
                 .message = cur["message"].toString(),
                 .line = cur["line"].toInt(),
                 .col = cur["column"].toInt(),

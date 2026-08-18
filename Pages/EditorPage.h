@@ -36,22 +36,20 @@ private:
     QAction* run_action;
     QAction* clean_action;
 
-    void OnFileOpened(const QModelIndex& index);
     void OnTabClosed(int index = -1);
     void OnSaveAs();
     void OnFileSaved();
     void OnBuild();
     void OnClean() const;
     void OnRun();
-    void OnFileLinted(CodeEditor* editor, const QVector<TinyLangUtils::LintItem>& result) const;
-
-    // open the file at the line/col
-    void OnProblemClicked(CodeEditor* editor, int line, int column);
-
-
+    void OnProblemClicked(const QString& file_path, int line, int column); // open the file at the line/col
+    void OnFileRenamed(const QString& old_path, const QString& new_path);
+    void OnFileDeleted(const QString& path);
+    bool SaveAllModifiedFiles();
+    void ScheduleProjectLint() const;
+    void RunProjectLint() const;
     void ConnectSignals();
     void ConnectProcessSignals();
-
     [[nodiscard]] CodeEditor* GetOpenEditor() const;
     CodeEditor* OpenFile(const QString& path);
 
@@ -62,4 +60,9 @@ private:
 
     QProcess* running_process = nullptr; // the qprocess (possibly null) when something is running
     constexpr static auto build_dir = "build";
+
+    bool save_before_run = true; // TODO: Settings
+
+    QTimer* project_lint_timer; // now owned by the editor, the cli works for the whole project, not per file as modules share symbols
+    constexpr static auto run_lint_time_ms = 300;
 };

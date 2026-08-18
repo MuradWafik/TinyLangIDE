@@ -19,21 +19,16 @@ public:
     explicit Problems(QWidget *parent = nullptr);
     ~Problems() override;
 
-    void SetFileDiagnostics(CodeEditor* editor, const QVector<TinyLangUtils::LintItem>& items);
-    void RemoveFile(CodeEditor* editor);
+    void SetDiagnostics(const QVector<TinyLangUtils::LintItem>& items) const;
+    void ClearDiagnostics() const;
 
 signals:
-    void DiagnosticClicked(CodeEditor* editor, int line, int column);
+    void DiagnosticClicked(const QString& file_path, int line, int column);
 
 private:
     Ui::Problems *ui;
-    QHash<CodeEditor*, QTreeWidgetItem*> file_items;
-
     void OnItemClicked(QTreeWidgetItem *item, int column);
 
 };
-
-
-
 
 #endif //PROBLEMS_H

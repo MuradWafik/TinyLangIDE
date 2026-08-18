@@ -17,10 +17,9 @@ qt_add_executable(TinyLangIDE
         IMenuProvider.h
         TinyLangKnowledge/TLSyntaxHighlighter.cpp
         TinyLangKnowledge/TLSyntaxHighlighter.h
-        Widgets/Problems.cpp
-        Widgets/Problems.h
-        Widgets/Problems.ui
+        Widgets/Problems.cpp Widgets/Problems.h  Widgets/Problems.ui
         Widgets/FileItem.h
+        Widgets/FileTree.cpp Widgets/FileTree.h
 )
 
 target_compile_features(TinyLangIDE PRIVATE cxx_std_23)

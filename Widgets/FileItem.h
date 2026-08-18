@@ -7,11 +7,11 @@
 class FileItem final : public QTreeWidgetItem
 {
 public:
-    explicit FileItem(CodeEditor* editor)
-        : editor(editor)
+    explicit FileItem(QString file_path)
+        : file_path(std::move(file_path))
     {}
 
-    CodeEditor* editor;
+    QString file_path;
 };
 
 

@@ -9,9 +9,8 @@ Problems::Problems(QWidget *parent) :
     QWidget(parent), ui(new Ui::Problems)
 {
     ui->setupUi(this);
-
-    connect(ui->treeWidget, &QTreeWidget::itemClicked,
-            this, &Problems::OnItemClicked);
+    ui->treeWidget->setFocusPolicy(Qt::NoFocus);    
+    connect(ui->treeWidget, &QTreeWidget::itemClicked, this, &Problems::OnItemClicked);
 }
 
 Problems::~Problems()
@@ -19,52 +18,41 @@ Problems::~Problems()
     delete ui;
 }
 
-void Problems::SetFileDiagnostics(CodeEditor* editor, const QVector<TinyLangUtils::LintItem>& items)
+void Problems::SetDiagnostics(const QVector<TinyLangUtils::LintItem>& items) const
 {
-    QTreeWidgetItem* file_item = file_items.value(editor, nullptr);
+    ui->treeWidget->clear();
 
-    if (!file_item)
+    QMap<QString, QVector<TinyLangUtils::LintItem>> grouped;
+    for (const auto& item : items)
     {
-        auto* new_file_item = new FileItem(editor);
-        new_file_item->setText(0, editor->file_path.path());
+        grouped[item.file].append(item);
+    }
 
-        ui->treeWidget->addTopLevelItem(new_file_item);
+    for (auto it = grouped.constBegin(); it != grouped.constEnd(); ++it)
+    {
+        const QString& file_path = it.key();
+        const auto& file_items = it.value();
 
-        file_items.insert(editor, new_file_item);
+        auto* file_item = new FileItem(file_path);
+        const QFileInfo file_info(file_path);
+        file_item->setText(0, file_info.fileName().isEmpty() ? file_path : file_info.fileName());
+        file_item->setToolTip(0, file_path);
 
-        connect(editor, &QObject::destroyed, this, [this, editor]
+        for (const auto& lint_item : file_items)
         {
-            RemoveFile(editor);
-        });
+            auto* diagnostic = new DiagnosticItem(lint_item.line, lint_item.col);
+            diagnostic->setText(0, lint_item.ToString());
+            file_item->addChild(diagnostic);
+        }
 
-        file_item = new_file_item;
+        ui->treeWidget->addTopLevelItem(file_item);
+        file_item->setExpanded(true);
     }
-
-    qDeleteAll(file_item->takeChildren());
-
-    for (const auto& lint_item : items)
-    {
-        auto* diagnostic = new DiagnosticItem(
-            lint_item.line,
-            lint_item.col
-        );
-
-        diagnostic->setText(0, lint_item.ToString());
-
-        file_item->addChild(diagnostic);
-    }
-
-    file_item->setExpanded(true);
 }
 
-void Problems::RemoveFile(CodeEditor* editor)
+void Problems::ClearDiagnostics() const
 {
-    const auto it = file_items.find(editor);
-
-    if(it == file_items.end()) return;
-
-    delete it.value();
-    file_items.erase(it);
+    ui->treeWidget->clear();
 }
 
 void Problems::OnItemClicked(QTreeWidgetItem* item, int)
@@ -73,7 +61,7 @@ void Problems::OnItemClicked(QTreeWidgetItem* item, int)
     if(!diagnostic) return;
 
     const auto* file_item = dynamic_cast<FileItem*>(diagnostic->parent());
-    if(!file_item || !file_item->editor) return;
+    if(!file_item || file_item->file_path.isEmpty()) return;
 
-    emit DiagnosticClicked(file_item->editor, diagnostic->line, diagnostic->column);
+    emit DiagnosticClicked(file_item->file_path, diagnostic->line, diagnostic->column);
 }

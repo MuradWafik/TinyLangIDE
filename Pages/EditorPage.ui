@@ -125,7 +125,7 @@
        <string>670</string>
       </stringlist>
      </property>
-     <widget class="QTreeView" name="fileTree">
+     <widget class="FileTree" name="fileTree">
       <property name="minimumSize">
        <size>
         <width>160</width>
@@ -264,8 +264,12 @@ Open a file to start editing</string>
    <header>Widgets/Problems.h</header>
    <container>1</container>
   </customwidget>
+  <customwidget>
+   <class>FileTree</class>
+   <extends>QTreeView</extends>
+   <header>Widgets/FileTree.h</header>
+  </customwidget>
  </customwidgets>
  <resources/>
  <connections/>
 </ui>
-

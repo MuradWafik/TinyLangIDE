@@ -6,6 +6,7 @@
 
 #include <QFileSystemModel>
 #include <QMessageBox>
+#include <QTimer>
 
 #include "CodeEditor.h"
 #include "TinyLangKnowledge/TinyLangUtils.h"
@@ -21,6 +22,7 @@ EditorPage::EditorPage(QWidget *parent)
     , build_action{MakeAction("&Build", QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_B), this)}
     , run_action{MakeAction("&Run", QKeySequence(Qt::Key_F5), this)}
     , clean_action{MakeAction("&Clean", {}, this)}
+    , project_lint_timer{new QTimer(this)}
 {
     ui->setupUi(this);
 
@@ -43,6 +45,7 @@ void EditorPage::Initialize(const QDir& dir)
 {
     this->project_dir = dir;
 
+    file_model->setReadOnly(false);
     file_model->setFilter(QDir::AllDirs | QDir::Files | QDir::NoDotAndDotDot);
 
     file_model->setNameFilters({
@@ -53,18 +56,11 @@ void EditorPage::Initialize(const QDir& dir)
     });
 
     file_model->setNameFilterDisables(false);
-
     file_model->setRootPath(project_dir.path()); // Starts the worker thread to gather data
 
     this->ui->fileTree->setModel(file_model);
     this->ui->fileTree->setRootIndex(file_model->index(project_dir.path()));
-}
-
-void EditorPage::OnFileOpened(const QModelIndex& index)
-{
-    if(file_model->isDir(index)) return;
-
-    OpenFile(file_model->filePath(index));
+    RunProjectLint();
 }
 
 void EditorPage::OnTabClosed(int index)
@@ -72,13 +68,32 @@ void EditorPage::OnTabClosed(int index)
     if(index < 0) index = ui->editorTabs->currentIndex();
     if(index < 0) return;
 
-    const auto code_editor = GetOpenEditor();
+    const auto* editor = qobject_cast<CodeEditor*>(ui->editorTabs->widget(index));
+    if(!editor) return;
 
-    openFiles.remove(code_editor->file_path.canonicalPath());
-    this->ui->problemsPage->RemoveFile(code_editor);
+    if(editor->document()->isModified())
+    {
+        const auto btn = QMessageBox::question(
+            this,
+            tr("Save Changes"),
+            tr("Do you want to save changes to '%1' before closing?").arg(editor->file_path.fileName()),
+            QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel,
+            QMessageBox::Save
+        );
 
+        if(btn == QMessageBox::Cancel) return;
 
-    const QWidget* editor = ui->editorTabs->widget(index);
+        if(btn == QMessageBox::Save)
+        {
+            if(const auto result = editor->Save(); !result)
+            {
+                QMessageBox::warning(this, tr("Error Saving"), result.error());
+                return;
+            }
+        }
+    }
+
+    openFiles.remove(editor->file_path.canonicalPath());
     ui->editorTabs->removeTab(index);
     delete editor;
 }
@@ -114,10 +129,13 @@ void EditorPage::OnSaveAs()
     openFiles.remove(old_path);
     openFiles.insert(canonical_path, editor);
 
-    ui->editorTabs->setTabText(
-        ui->editorTabs->indexOf(editor),
-        QFileInfo(canonical_path).fileName()
-    );
+    const int idx = ui->editorTabs->indexOf(editor);
+    if(idx >= 0)
+    {
+        QString title = QFileInfo(canonical_path).fileName();
+        if(editor->document()->isModified()) title += " *";
+        ui->editorTabs->setTabText(idx, title);
+    }
 }
 
 
@@ -132,8 +150,27 @@ void EditorPage::OnFileSaved()
     }
 }
 
+bool EditorPage::SaveAllModifiedFiles()
+{
+    for(int i = 0; i < ui->editorTabs->count(); ++i)
+    {
+        auto* editor = qobject_cast<CodeEditor*>(ui->editorTabs->widget(i));
+        if(editor && editor->document()->isModified())
+        {
+            if(const auto result = editor->Save(); !result)
+            {
+                QMessageBox::warning(this, tr("Error Saving File"), result.error());
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
 void EditorPage::OnBuild()
 {
+    if(save_before_run && !SaveAllModifiedFiles()) return;
+
     const auto build =
         TinyLangUtils::BuildProject(project_dir, QDir(project_dir.filePath(build_dir)));
     if(!build) QMessageBox::warning(this, tr("Error Building Project"), build.error());
@@ -193,11 +230,19 @@ CodeEditor* EditorPage::OpenFile(const QString& path)
 
     auto* editor = new CodeEditor(canonical_path);
 
+    connect(editor, &CodeEditor::textChanged, this, &EditorPage::ScheduleProjectLint);
     connect(
-        editor,
-        &CodeEditor::OnFileLinted,
-        this,
-        &EditorPage::OnFileLinted
+        editor->document(), &QTextDocument::modificationChanged,
+        this, [this, editor](const bool modified)
+        {
+            if(const int idx = ui->editorTabs->indexOf(editor);
+                idx >= 0)
+            {
+                QString title = editor->file_path.fileName();
+                if(modified) title += " *";
+                ui->editorTabs->setTabText(idx, title);
+            }
+        }
     );
 
     const int tab_index = ui->editorTabs->addTab(
@@ -212,9 +257,26 @@ CodeEditor* EditorPage::OpenFile(const QString& path)
     return editor;
 }
 
+void EditorPage::ScheduleProjectLint() const
+{
+    project_lint_timer->start(run_lint_time_ms);
+}
+
+void EditorPage::RunProjectLint() const
+{
+    project_lint_timer->stop();
+    if(project_dir.path().isEmpty()) return;
+
+    if(const auto res = TinyLangUtils::CheckProject(project_dir.path()))
+    {
+        ui->problemsPage->SetDiagnostics(res.value());
+    }
+}
+
 void EditorPage::OnRun()
 {
     if(running_process) return;
+    if(save_before_run && !SaveAllModifiedFiles()) return;
 
     // the page takes ownership of the process (owns the pointer and is set as the parent) thus can end if page is changed
     auto run = TinyLangUtils::RunProject(this, project_dir);
@@ -231,18 +293,21 @@ void EditorPage::OnRun()
     ConnectProcessSignals();
 }
 
-void EditorPage::OnFileLinted(CodeEditor* editor, const QVector<TinyLangUtils::LintItem>& result) const
-{
-    // TODO: symbol for warning and error
-    auto* problems = this->ui->problemsPage;
-    problems->SetFileDiagnostics(editor, result);
-}
 
-void EditorPage::OnProblemClicked(CodeEditor* editor, const int line, const int column)
+
+void EditorPage::OnProblemClicked(const QString& file_path, const int line, const int column)
 {
-    ui->editorTabs->setCurrentWidget(editor);
-    editor->SetCursorPosition(line, column);
-    editor->setFocus();
+    if(CodeEditor* editor = OpenFile(file_path))
+    {
+        editor->SetCursorPosition(line, column);
+        ui->problemsPage->clearFocus();
+        // when called right away nothing happens
+        QTimer::singleShot(150, editor, [editor]
+        {
+            editor->setFocus();
+            editor->activateWindow();
+        });
+    }
 }
 
 void EditorPage::ContributeMenus(MenuRegistry& registry)
@@ -258,7 +323,16 @@ void EditorPage::ContributeMenus(MenuRegistry& registry)
 
 void EditorPage::ConnectSignals()
 {
-    connect(ui->fileTree, &QTreeView::clicked, this, &EditorPage::OnFileOpened);
+    connect(project_lint_timer, &QTimer::timeout, this, &EditorPage::RunProjectLint);
+    connect(ui->fileTree, &FileTree::FileOpenRequested, this,
+        [this](const QString& path)
+        {
+            OpenFile(path);
+        }
+    );
+
+    connect(ui->fileTree, &FileTree::FileRenamed, this, &EditorPage::OnFileRenamed);
+    connect(ui->fileTree, &FileTree::FileDeleted, this, &EditorPage::OnFileDeleted);
 
     connect(ui->editorTabs, &QTabWidget::tabCloseRequested, this, &EditorPage::OnTabClosed);
     connect(close_action, &QAction::triggered, this, [this] { OnTabClosed(); });
@@ -274,5 +348,74 @@ void EditorPage::ConnectSignals()
     ui->runButton->setDefaultAction(run_action);
 
     connect(ui->problemsPage, &Problems::DiagnosticClicked, this, &EditorPage::OnProblemClicked);
+}
 
+void EditorPage::OnFileRenamed(const QString& old_path, const QString& new_path)
+{
+    const QString old_canonical = QFileInfo(old_path).canonicalFilePath();
+    const QString new_canonical = QFileInfo(new_path).canonicalFilePath();
+
+    const auto it = openFiles.find(old_canonical);
+    if(it == openFiles.end()) return;
+
+    const auto editor = qobject_cast<CodeEditor*>(it.value());
+    openFiles.erase(it);
+    openFiles.insert(new_canonical, editor);
+
+    editor->file_path = QFileInfo(new_canonical);
+
+    if(const int tabIndex = ui->editorTabs->indexOf(editor);
+        tabIndex >= 0)
+    {
+        QString title = QFileInfo(new_canonical).fileName();
+        if(editor->document()->isModified()) title += " *";
+        ui->editorTabs->setTabText(tabIndex, title);
+    }
+}
+
+void EditorPage::OnFileDeleted(const QString& path)
+{
+    const QString canonical_path = QFileInfo(path).canonicalFilePath();
+    if(const auto it = openFiles.find(canonical_path); it != openFiles.end())
+    {
+        if(const auto* editor = qobject_cast<CodeEditor*>(it.value()))
+        {
+            editor->document()->setModified(false);
+            if(const int idx = ui->editorTabs->indexOf(editor);
+                idx >= 0)
+            {
+                openFiles.erase(it);
+                ui->editorTabs->removeTab(idx);
+                delete editor;
+            }
+        }
+        return;
+    }
+
+    QList<QString> to_close;
+    for(auto it = openFiles.constBegin(); it != openFiles.constEnd(); ++it)
+    {
+        if(it.key().startsWith(canonical_path + "/") || it.key() == canonical_path)
+        {
+            to_close.append(it.key());
+        }
+    }
+
+    for(const auto& key : to_close)
+    {
+        if(const auto it = openFiles.find(key); it != openFiles.end())
+        {
+            if(const auto* editor = qobject_cast<CodeEditor*>(it.value()))
+            {
+                editor->document()->setModified(false);
+                if(const int idx = ui->editorTabs->indexOf(editor);
+                    idx >= 0)
+                {
+                    ui->editorTabs->removeTab(idx);
+                    delete editor;
+                }
+            }
+            openFiles.erase(it);
+        }
+    }
 }

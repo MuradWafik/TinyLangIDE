@@ -17,6 +17,7 @@ struct LintItem
         error,
     };
 
+    QString file;
     QString message;
     int line;
     int col;

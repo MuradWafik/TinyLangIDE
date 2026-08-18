@@ -34,36 +34,33 @@ public:
 
 protected:
     void resizeEvent(QResizeEvent *event) Q_DECL_OVERRIDE;
-
-signals:
-    void OnFileLinted(CodeEditor* code_editor, const QVector<TinyLangUtils::LintItem>& result);
+    void keyPressEvent(QKeyEvent* event) override;
 
 private slots:
     void updateLineNumberAreaWidth(int newBlockCount);
     void highlightCurrentLine();
     void updateLineNumberArea(const QRect &, int);
 
-
-
 private:
     constexpr static QColor backgroundColor{27, 27, 27};
     constexpr static QColor hover_color{35, 35, 35};
     constexpr static QColor font_color{255, 255, 255};
 
-    constexpr static auto run_lint_time_ms = 200;
-    QTimer* run_lint_timer;
-
-    LintSaveMode lint_save_mode = LintSaveMode::SaveBeforeLint; // TODO: Settings
     QString line_ending = "\n"; // TODO: setting for user to pick between lf vs crlf
 
+    struct TabType
+    {
+        uint32_t size = 4;
+        enum class Type
+        {
+            SpacesKey,
+            TabKey
+        } type = Type::SpacesKey;
+    } tab_type; // TODO: Settings
 
     TLSyntaxHighlighter* syntax_highlighter;
     QWidget* lineNumberArea;
 
-    void UpdateLintTimer() const;
-    void RunLint();
-    inline bool IsTLFile() const { return file_path.suffix() == "tl"; }
-
+    [[nodiscard]] inline bool IsTLFile() const { return file_path.suffix() == "tl"; }
     [[nodiscard]] std::expected<void, QString> SaveTo(const QString& path) const;
-
 };
