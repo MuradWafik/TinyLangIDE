@@ -1,17 +1,28 @@
 #include "CodeEditor.h"
 
-#include <qfile.h>
+#include <QApplication>
+#include <QContextMenuEvent>
+#include <QFile>
+#include <QFontDatabase>
+#include <QMenu>
 #include <QMessageBox>
 #include <QPainter>
 #include <QTextBlock>
 #include <QTimer>
 
+#include "IMenuProvider.h"
 #include "LineNumberArea.h"
 #include "TinyLangUtils.h"
 
 
 void CodeEditor::InitializeLineNumbers()
 {
+    QFont editor_font(QStringLiteral("Ubuntu Sans Mono"));
+    editor_font.setStyleHint(QFont::Monospace);
+    editor_font.setPointSize(12);
+    setFont(editor_font);
+    document()->setDocumentMargin(6);
+
     lineNumberArea = new LineNumberArea(this);
     syntax_highlighter = new TLSyntaxHighlighter(document());
 
@@ -42,6 +53,18 @@ CodeEditor::CodeEditor(QString file_path, QWidget* parent)
     this->setPlainText(stream.readAll());
 
     InitializeLineNumbers();
+
+    go_to_definition = MakeAction(
+        tr("Go to Definition"), QKeySequence(Qt::CTRL | Qt::Key_B), this);
+    go_to_definition->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+    addAction(go_to_definition);
+    connect(go_to_definition, &QAction::triggered, this, [this]
+    {
+        if(const auto sel = GetSymbolUnderCursor(); sel.has_value())
+        {
+            emit GoToDefinitionRequested(this->file_path.absoluteFilePath(), sel->line, sel->col);
+        }
+    });
 }
 
 
@@ -56,14 +79,7 @@ int CodeEditor::lineNumberAreaWidth() const
     }
 
     digits = qMax(digits, 2); // At least 2 digits wide
-
-    constexpr int leftPadding  = LineNumberArea::rightMargin / 2;
-    constexpr int rightPadding = LineNumberArea::rightMargin;
-
-    return
-        leftPadding
-        + (fontMetrics().averageCharWidth() * digits)
-        + rightPadding;
+    return 10 + (fontMetrics().horizontalAdvance(QLatin1Char('9')) * digits) + 12;
 }
 
 void CodeEditor::updateLineNumberAreaWidth(int /* newBlockCount */)
@@ -92,44 +108,65 @@ void CodeEditor::resizeEvent(QResizeEvent *event)
 
 void CodeEditor::highlightCurrentLine()
 {
-    QList<QTextEdit::ExtraSelection> extraSelections;
+    QList<QTextEdit::ExtraSelection> extra_selections;
 
-    if (!isReadOnly())
+    if(!isReadOnly())
     {
         QTextEdit::ExtraSelection selection;
 
-        const QColor lineColor = backgroundColor.lighter(160);
+        const QColor line_color = background_color.lighter(160);
 
-        selection.format.setBackground(lineColor);
+        selection.format.setBackground(line_color);
         selection.format.setProperty(QTextFormat::FullWidthSelection, true);
         selection.cursor = textCursor();
         selection.cursor.clearSelection();
-        extraSelections.append(selection);
+        extra_selections.append(selection);
     }
 
-    setExtraSelections(extraSelections);
+    if(const auto sel = GetSymbolUnderCursor(); sel.has_value())
+    {
+        const auto* doc = document();
+        const QRegularExpression reg(QStringLiteral("\\b") + QRegularExpression::escape(sel->name) + QStringLiteral("\\b"));
+        QTextCursor search_cursor = textCursor();
+        search_cursor.setPosition(0);
+
+        while(true)
+        {
+            search_cursor = doc->find(reg, search_cursor);
+            if(search_cursor.isNull()) break;
+
+            QTextEdit::ExtraSelection symbol_sel;
+            symbol_sel.format.setBackground(occurrence_color);
+            symbol_sel.cursor = search_cursor;
+            extra_selections.append(symbol_sel);
+        }
+    }
+
+    setExtraSelections(extra_selections);
 }
 
 void CodeEditor::lineNumberAreaPaintEvent(const QPaintEvent *event) const
 {
     QPainter painter(lineNumberArea);
 
-    painter.fillRect(event->rect(), backgroundColor);
+    painter.fillRect(event->rect(), background_color);
 
     QTextBlock block = firstVisibleBlock();
     int blockNumber = block.blockNumber();
     int top = static_cast<int>(blockBoundingGeometry(block).translated(contentOffset()).top());
     int bottom = top + static_cast<int>(blockBoundingRect(block).height());
 
+    const QColor line_num_color(110, 118, 129);
+
     while (block.isValid() && top <= event->rect().bottom())
     {
         if (block.isVisible() && bottom >= event->rect().top())
         {
             QString number = QString::number(blockNumber + 1);
-            painter.setPen(font_color);
+            painter.setPen(line_num_color);
             QRect rect(
                 0, top,
-                lineNumberArea->width() - LineNumberArea::rightMargin, fontMetrics().height()
+                lineNumberArea->width() - 8, fontMetrics().height()
             );
 
             painter.drawText(rect, Qt::AlignRight | Qt::AlignVCenter, number);
@@ -172,6 +209,14 @@ void CodeEditor::SetCursorPosition(uint32_t line, uint32_t col)
     setTextCursor(cursor);
 }
 
+void CodeEditor::SetSemanticSymbols(const QJsonArray& symbols)
+{
+    if(syntax_highlighter)
+    {
+        syntax_highlighter->SetSemanticSymbols(symbols);
+    }
+}
+
 std::expected<void, QString> CodeEditor::SaveTo(const QString& path) const
 {
     QFile file(path);
@@ -197,10 +242,68 @@ std::expected<void, QString> CodeEditor::SaveTo(const QString& path) const
     return {};
 }
 
+std::optional<CodeEditor::SymbolSelection> CodeEditor::GetSymbolUnderCursor() const
+{
+    QTextCursor cursor = textCursor();
+    QString symbol = cursor.selectedText().trimmed();
+
+    int start_pos = cursor.selectionStart();
+    if(symbol.isEmpty())
+    {
+        cursor.select(QTextCursor::WordUnderCursor);
+        symbol = cursor.selectedText().trimmed();
+        start_pos = cursor.selectionStart();
+    }
+
+    if(symbol.isEmpty() || (!symbol.at(0).isLetter() && symbol.at(0) != '_'))
+    {
+        return std::nullopt;
+    }
+
+    const int line = cursor.blockNumber() + 1;
+    const int col = start_pos - cursor.block().position() + 1;
+
+    return SymbolSelection{
+        .name = std::move(symbol),
+        .line = line,
+        .col = col
+    };
+}
+
+void CodeEditor::contextMenuEvent(QContextMenuEvent* event)
+{
+    QMenu* menu = createStandardContextMenu(event->pos());
+    if(const auto sel = GetSymbolUnderCursor(); sel.has_value())
+    {
+        menu->addSeparator();
+        go_to_definition->setText(tr("Go to Definition (%1)").arg(sel->name));
+        menu->addAction(go_to_definition);
+    }
+    menu->exec(event->globalPos());
+    delete menu;
+}
+
+void CodeEditor::mousePressEvent(QMouseEvent* event)
+{
+    if(event->button() == Qt::LeftButton && (event->modifiers() & Qt::ControlModifier))
+    {
+        const QTextCursor click_cursor = cursorForPosition(event->pos());
+        setTextCursor(click_cursor);
+
+        if(const auto sel = GetSymbolUnderCursor(); sel.has_value())
+        {
+            emit GoToDefinitionRequested(file_path.absoluteFilePath(), sel->line, sel->col);
+            event->accept();
+            return;
+        }
+    }
+
+    QPlainTextEdit::mousePressEvent(event);
+}
+
 void CodeEditor::keyPressEvent(QKeyEvent* event)
 {
-    if(event->key() == Qt::Key_Tab &&
-        event->modifiers() == Qt::NoModifier)
+    if(event->key() == Qt::Key_Tab && event->modifiers() == Qt::NoModifier)
     {
         if(tab_type.type == TabType::Type::SpacesKey)
         {
@@ -212,6 +315,5 @@ void CodeEditor::keyPressEvent(QKeyEvent* event)
         }
         return;
     }
-
     QPlainTextEdit::keyPressEvent(event);
 }

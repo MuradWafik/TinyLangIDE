@@ -10,11 +10,6 @@
     <height>600</height>
    </rect>
   </property>
-  <property name="font">
-   <font>
-    <family>Ubuntu Sans Mono</family>
-   </font>
-  </property>
   <property name="windowTitle">
    <string>Editor</string>
   </property>

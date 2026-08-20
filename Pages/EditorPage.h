@@ -1,7 +1,9 @@
 #pragma once
 
 #include <expected>
+#include <QDateTime>
 #include <QFileSystemModel>
+#include <QJsonArray>
 
 #include "CodeEditor.h"
 #include "IMenuProvider.h"
@@ -11,6 +13,21 @@ namespace Ui {
 class EditorPage;
 }
 QT_END_NAMESPACE
+
+
+enum class SaveBeforeRunMode
+{
+    AlwaysSave,
+    PromptToSave,
+    NeverSave
+};
+
+enum class AnalysisTriggerMode
+{
+    OnType,
+    OnSave,
+    Manual
+};
 
 
 class EditorPage final : public QWidget, public IMenuProvider
@@ -43,15 +60,28 @@ private:
     void OnClean() const;
     void OnRun();
     void OnProblemClicked(const QString& file_path, int line, int column); // open the file at the line/col
+    void OnGoToDefinitionRequested(const QString& file_path, int line, int col);
     void OnFileRenamed(const QString& old_path, const QString& new_path);
     void OnFileDeleted(const QString& path);
     bool SaveAllModifiedFiles();
-    void ScheduleProjectLint() const;
-    void RunProjectLint() const;
+
+    struct SymbolCacheEntry
+    {
+        QDateTime last_modified;
+        QJsonArray symbols;
+    };
+
+    QHash<QString, SymbolCacheEntry> symbol_cache;
+
+    QJsonArray FetchSymbolsForFile(const QString& file_path);
+    void ScheduleProjectAnalysis() const;
+    void RunProjectAnalysis();
+
     void ConnectSignals();
     void ConnectProcessSignals();
     [[nodiscard]] CodeEditor* GetOpenEditor() const;
     CodeEditor* OpenFile(const QString& path);
+    CodeEditor* OpenFileAt(const QString& path, int line, int column);
 
 
     QHash<QString, QWidget*> openFiles;
@@ -61,7 +91,8 @@ private:
     QProcess* running_process = nullptr; // the qprocess (possibly null) when something is running
     constexpr static auto build_dir = "build";
 
-    bool save_before_run = true; // TODO: Settings
+    SaveBeforeRunMode save_before_run_mode = SaveBeforeRunMode::AlwaysSave; // TODO: Settings
+    AnalysisTriggerMode analysis_trigger_mode = AnalysisTriggerMode::OnType; // TODO: Settings
 
     QTimer* project_lint_timer; // now owned by the editor, the cli works for the whole project, not per file as modules share symbols
     constexpr static auto run_lint_time_ms = 300;

@@ -1,6 +1,9 @@
 #pragma once
+#include <QJsonArray>
+#include <QJsonObject>
 #include <QPlainTextEdit>
 #include <QRegularExpression>
+#include <QSet>
 #include <QSyntaxHighlighter>
 
 template<typename T, typename... Args>
@@ -9,13 +12,12 @@ static constexpr auto make_array(Args&&... args) -> std::array<T,sizeof...(args)
     return {T{std::forward<Args>(args)}...};
 }
 
-
-// currently works the same for the .tl and .json, but if the json file is standard highlighting works as expecte
 class TLSyntaxHighlighter final : public QSyntaxHighlighter
 {
     Q_OBJECT
 public:
     explicit TLSyntaxHighlighter(QTextDocument* parent);
+    void SetSemanticSymbols(const QJsonArray& symbols);
 
 protected:
     void highlightBlock(const QString &text) override;
@@ -28,9 +30,24 @@ private:
     };
     QVector<HighlightingRule> highlighting_rules;
 
-    static constexpr QColor keyword_color{22, 45, 196};
-    static constexpr QColor comment_color{61, 62, 64};
-    static constexpr QColor string_color{28, 102, 22};
+    QSet<QString> semantic_functions;
+    QSet<QString> semantic_types;
+    QSet<QString> semantic_variables;
+
+    QColor keyword_color{86, 156, 214};
+    QColor comment_color{106, 153, 85};
+    QColor string_color{206, 145, 120};
+    QColor function_color{220, 220, 170};
+    QColor type_color{78, 201, 176};
+    QColor variable_color{156, 220, 254};
+
+    void AddRule(const QString& pattern, const QColor& color, QFont::Weight weight = QFont::Normal);
+    void AddRule(const QRegularExpression& regex, const QColor& color, QFont::Weight weight = QFont::Normal);
+
+    void ApplyRegexMatches(const QString& text, const QRegularExpression& regex, const QTextCharFormat& format);
+    void HighlightSemanticSymbols(const QString& text);
+    void HighlightInterpolatedString(int str_start, const QString& str_content);
+    void HighlightInterpolatedExpression(int expr_global_pos, const QString& expr_text);
 
     static constexpr  auto keywords =
         make_array<QLatin1StringView>
